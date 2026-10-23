@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Focus Quest — Pomodoro + XP</title>
+<style>
+  :root {
+    --bg: #0b0e1a;
+    --panel: #141829;
+    --panel-2: #1b2038;
+    --line: #262c4a;
+    --text: #e8ecff;
+    --muted: #8a92c0;
+    --accent: #7c5cff;
+    --accent-2: #00d4ff;
+    --good: #3ddc84;
+    --warn: #ffb454;
+    --bad: #ff5c7a;
+    --radius: 16px;
+    font-size: 16px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(124,92,255,.22), transparent 60%),
+      radial-gradient(900px 500px at -10% 110%, rgba(0,212,255,.16), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    min-height: 100vh;
+    padding: 24px;
+  }
+  .app { max-width: 1080px; margin: 0 auto; }
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; flex-wrap: wrap; margin-bottom: 20px;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .logo {
+    width: 42px; height: 42px; border-radius: 12px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display: grid; place-items: center; font-size: 22px;
+    box-shadow: 0 6px 24px rgba(124,92,255,.4);
+  }
+  h1 { font-size: 1.35rem; letter-spacing: .3px; }
+  .sub { color: var(--muted); font-size: .82rem; }
+  .layout { display: grid; grid-template-columns: 1.15fr .85fr; gap: 20px; }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+  .card h2 {
+    font-size: .8rem; text-transform: uppercase; letter-spacing: .12em;
+    color: var(--muted); margin-bottom: 14px;
+  }
+
+  /* Timer */
+  .timer-card { text-align: center; }
+  .modes { display: inline-flex; background: var(--panel-2); border-radius: 999px; padding: 4px; gap: 4px; margin-bottom: 18px; }
+  .modes button {
+    border: 0; background: transparent; color: var(--muted);
+    padding: 8px 16px; border-radius: 999px; cursor: pointer;
+    font-size: .82rem; font-weight: 600; transition: all .18s;
+  }
+  .modes button.active { background: var(--accent); color: #fff; box-shadow: 0 4px 14px rgba(124,92,255,.45); }
+  .ring-wrap { position: relative; width: 260px; height: 260px; margin: 0 auto 10px; }
+  .ring-wrap svg { transform: rotate(-90deg); }
+  .ring-bg { stroke: var(--panel-2); }
+  .ring-fg {
+    stroke: url(#grad);
+    stroke-linecap: round;
+    transition: stroke-dashoffset .3s linear;
+  }
+  .ring-center {
+    position: absolute; inset: 0; display: grid; place-content: center; gap: 4px;
+  }
+  .time { font-size: 3.2rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .mode-label { color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .15em; }
+  .active-task { color: var(--accent-2); font-size: .85rem; min-height: 1.2em; margin-bottom: 12px; }
+  .controls { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .btn {
+    border: 0; border-radius: 12px; padding: 12px 26px;
+    font-size: .95rem; font-weight: 700; cursor: pointer; transition: transform .12s, box-shadow .12s;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; box-shadow: 0 6px 20px rgba(0,212,255,.28); }
+  .btn-ghost { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); }
+  .btn:hover { filter: brightness(1.1); }
+  .hint { margin-top: 14px; color: var(--muted); font-size: .75rem; }
+  kbd {
+    background: var(--panel-2); border: 1px solid var(--line); border-bottom-width: 2px;
+    border-radius: 5px; padding: 1px 6px; font-size: .72rem;
+  }
+
+  /* Level / XP */
+  .level-row { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+  .avatar {
+    width: 52px; height: 52px; border-radius: 14px; flex: none;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display: grid; place-items: center; font-size: 1.5rem;
+  }
+  .xp-track { flex: 1; height: 12px; background: var(--panel-2); border-radius: 999px; overflow: hidden; }
+  .xp-fill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    border-radius: 999px; transition: width .5s cubic-bezier(.2,.9,.3,1);
+  }
+  .xp-text { font-size: .75rem; color: var(--muted); margin-top: 6px; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .stat {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 12px; padding: 12px; text-align: center;
+  }
+  .stat .n { font-size: 1.35rem; font-weight: 700; }
+  .stat .l { font-size: .68rem; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+  .streak-flame { color: var(--warn); }
+
+  /* Tasks */
+  .task-input { display: flex; gap: 8px; margin-bottom: 12px; }
+  .task-input input {
+    flex: 1; background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 10px; padding: 10px 12px; color: var(--text); font-size: .9rem; outline: none;
+  }
+  .task-input input:focus { border-color: var(--accent); }
+  .task-list { list-style: none; display: flex; flex-direction: column; gap: 8px; max-height: 300px; overflow-y: auto; }
+  .task {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 10px; padding: 10px 12px; cursor: pointer; transition: border-color .15s;
+  }
+  .task:hover { border-color: var(--accent); }
+  .task.active { border-color: var(--accent-2); box-shadow: 0 0 0 1px var(--accent-2) inset; }
+  .task.done .t-name { text-decoration: line-through; color: var(--muted); }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--panel); border: 2px solid var(--muted); flex: none; }
+  .task.active .dot { border-color: var(--accent-2); background: var(--accent-2); }
+  .task.done .dot { border-color: var(--good); background: var(--good); }
+  .t-name { flex: 1; font-size: .88rem; }
+  .t-del { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 1rem; padding: 2px 6px; border-radius: 6px; }
+  .t-del:hover { color: var(--bad); background: rgba(255,92,122,.12); }
+  .empty { color: var(--muted); font-size: .82rem; text-align: center; padding: 18px 0; }
+
+  /* Achievements */
+  .ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .ach {
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px; opacity: .45; filter: grayscale(1); transition: all .3s;
+  }
+  .ach.unlocked { opacity: 1; filter: none; border-color: var(--warn); box-shadow: 0 0 18px rgba(255,180,84,.15); }
+  .ach .icon { font-size: 1.5rem; }
+  .ach .name { font-size: .78rem; font-weight: 700; margin-top: 4px; }
+  .ach .desc { font-size: .68rem; color: var(--muted); }
+
+  /* Toast + confetti */
+  #toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--panel-2); border: 1px solid var(--accent); color: var(--text);
+    padding: 12px 22px; border-radius: 12px; font-size: .9rem; font-weight: 600;
+    opacity: 0; pointer-events: none; transition: all .35s; z-index: 50;
+    box-shadow: 0 10px 30px rgba(0,0,0,.5);
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #confetti { position: fixed; inset: 0; pointer-events: none; z-index: 40; }
+  footer { text-align: center; color: var(--muted); font-size: .72rem; margin-top: 22px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">
+      <div class="logo">⚡</div>
+      <div>
+        <h1>Focus Quest</h1>
+        <div class="sub">Pomodoro timer with XP, levels &amp; streaks</div>
+      </div>
+    </div>
+    <div class="card" style="padding:10px 16px; display:flex; align-items:center; gap:14px;">
+      <span title="Streak">🔥 <b id="hdr-streak">0</b></span>
+      <span title="Coins">🪙 <b id="hdr-coins">0</b></span>
+      <span title="Level">⭐ Lv <b id="hdr-level">1</b></span>
+    </div>
+  </header>
+
+  <div class="layout">
+    <!-- LEFT: timer -->
+    <div class="card timer-card">
+      <div class="modes">
+        <button data-mode="focus" class="active">Focus</button>
+        <button data-mode="short">Short Break</button>
+        <button data-mode="long">Long Break</button>
+      </div>
+
+      <div class="ring-wrap">
+        <svg width="260" height="260" viewBox="0 0 260 260">
+          <defs>
+            <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#7c5cff"/>
+              <stop offset="100%" stop-color="#00d4ff"/>
+            </linearGradient>
+          </defs>
+          <circle class="ring-bg" cx="130" cy="130" r="112" fill="none" stroke-width="14"/>
+          <circle id="ring" class="ring-fg" cx="130" cy="130" r="112" fill="none" stroke-width="14"
+                  stroke-dasharray="703.7" stroke-dashoffset="0"/>
+        </svg>
+        <div class="ring-center">
+          <div class="mode-label" id="mode-label">Focus</div>
+          <div class="time" id="time">25:00</div>
+        </div>
+      </div>
+
+      <div class="active-task" id="active-task-label">No active task — pick one below 👇</div>
+
+      <div class="controls">
+        <button class="btn btn-primary" id="start-btn">▶ Start</button>
+        <button class="btn btn-ghost" id="reset-btn">↺ Reset</button>
+        <button class="btn btn-ghost" id="skip-btn">⏭ Skip</button>
+      </div>
+      <div class="hint"><kbd>Space</kbd> start/pause · <kbd>R</kbd> reset · progress saves automatically</div>
+    </div>
+
+    <!-- RIGHT: stats, tasks, achievements -->
+    <div style="display:flex; flex-direction:column; gap:20px;">
+      <div class="card">
+        <h2>Adventurer</h2>
+        <div class="level-row">
+          <div class="avatar" id="avatar">🧙</div>
+          <div style="flex:1">
+            <div class="xp-track"><div class="xp-fill" id="xp-fill"></div></div>
+            <div class="xp-text" id="xp-text">0 / 100 XP to level 2</div>
+          </div>
+        </div>
+        <div class="stats">
+          <div class="stat"><div class="n" id="stat-today">0</div><div class="l">Sessions today</div></div>
+          <div class="stat"><div class="n" id="stat-minutes">0</div><div class="l">Focus min</div></div>
+          <div class="stat"><div class="n streak-flame" id="stat-streak">0</div><div class="l">Day streak</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Quest Log</h2>
+        <div class="task-input">
+          <input id="task-input" placeholder="Add a task… (press Enter)" maxlength="80">
+          <button class="btn btn-primary" id="add-task-btn" style="padding:10px 16px;">+</button>
+        </div>
+        <ul class="task-list" id="task-list"></ul>
+        <div class="empty" id="tasks-empty">No quests yet. Add one!</div>
+      </div>
+
+      <div class="card">
+        <h2>Achievements</h2>
+        <div class="ach-grid" id="ach-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>Everything stays in your browser (localStorage). No account, no cloud.</footer>
+</div>
+
+<div id="toast"></div>
+<canvas id="confetti"></canvas>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+
+  // ---------- config ----------
+  const MODES = {
+    focus: { label: "Focus",           minutes: 25, color: "#7c5cff" },
+    short: { label: "Short Break",     minutes: 5,  color: "#3ddc84" },
+    long:  { label: "Long Break",      minutes: 15, color: "#00d4ff" },
+  };
+  const XP_PER_SESSION = 25;
+  const COINS_PER_SESSION = 10;
+  const AVATARS = ["🧙","🧝","🥷","🤖","🦊","🐲","⚔️","🛡️"];
+  const ACHIEVEMENTS = [
+    { id: "first",   icon: "🌱", name: "First Focus",   desc: "Complete 1 session",   test: s => s.totalSessions >= 1 },
+    { id: "five",    icon: "🔥", name: "On a Roll",     desc: "Complete 5 sessions",  test: s => s.totalSessions >= 5 },
+    { id: "twentyfive", icon: "⚡", name: "Deep Worker", desc: "25 focus minutes",     test: s => s.totalMinutes >= 25 },
+    { id: "hundred", icon: "🏔️", name: "Century",      desc: "100 focus minutes",    test: s => s.totalMinutes >= 100 },
+    { id: "streak3", icon: "📆", name: "Habit Forming",desc: "3-day streak",         test: s => s.streak >= 3 },
+    { id: "streak7", icon: "🗓️", name: "Unstoppable",  desc: "7-day streak",         test: s => s.streak >= 7 },
+    { id: "level5",  icon: "👑", name: "Ascended",     desc: "Reach level 5",        test: s => levelFor(s.xp) >= 5 },
+    { id: "quest3",  icon: "📜", name: "Quest Master", desc: "Complete 3 tasks",     test: s => s.tasksDone >= 3 },
+  ];
+  const xpForLevel = (lvl) => 100 + (lvl - 1) * 50;      // xp needed to go lvl -> lvl+1
+  const levelFor = (xp) => {
+    let lvl = 1, rem = xp;
+    while (rem >= xpForLevel(lvl)) { rem -= xpForLevel(lvl); lvl++; }
+    return lvl;
+  };
+  const xpIntoLevel = (xp) => {
+    let lvl = 1, rem = xp;
+    while (rem >= xpForLevel(lvl)) { rem -= xpForLevel(lvl); lvl++; }
+    return rem;
+  };
+
+  // ---------- state ----------
+  const todayKey = () => new Date().toISOString().slice(0, 10);
+  const DEFAULT = {
+    xp: 0, coins: 0, totalSessions: 0, totalMinutes: 0, tasksDone: 0,
+    lastCompletedDay: null, streak: 0,
+    day: todayKey(), daySessions: 0,
+    tasks: [], activeTaskId: null,
+    achievements: [],
+    durations: { focus: 25, short: 5, long: 15 },
+  };
+  let state;
+  try { state = Object.assign({}, DEFAULT, JSON.parse(localStorage.getItem("focusquest") || "{}")); }
+  catch { state = { ...DEFAULT }; }
+  state.durations = Object.assign({}, DEFAULT.durations, state.durations || {});
+  state.tasks = Array.isArray(state.tasks) ? state.tasks : [];
+  state.achievements = Array.isArray(state.achievements) ? state.achievements : [];
+
+  const save = () => localStorage.setItem("focusquest", JSON.stringify(state));
+
+  // roll the daily counter / streak forward
+  (function rollDay() {
+    const t = todayKey();
+    if (state.day !== t) {
+      if (state.lastCompletedDay) {
+        const gap = (new Date(t) - new Date(state.lastCompletedDay)) / 86400000;
+        state.streak = gap === 1 ? state.streak + 1 : 1;
+      } else state.streak = 1;
+      state.day = t; state.daySessions = 0;
+      save();
+    }
+  })();
+
+  // ---------- timer ----------
+  let mode = "focus";
+  let remaining = state.durations.focus * 60;
+  let running = false;
+  let endAt = null;
+  let tickHandle = null;
+  let focusSessionsThisRun = 0;
+
+  const RING_LEN = 2 * Math.PI * 112;
+  $("ring").setAttribute("stroke-dasharray", RING_LEN.toFixed(1));
+
+  function fmt(sec) {
+    const m = Math.floor(sec / 60), s = sec % 60;
+    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }
+  function totalSeconds() { return state.durations[mode] * 60; }
+
+  function renderTimer() {
+    const total = totalSeconds();
+    const frac = total ? remaining / total : 0;
+    $("time").textContent = fmt(remaining);
+    $("ring").setAttribute("stroke-dashoffset", (RING_LEN * (1 - frac)).toFixed(1));
+    $("mode-label").textContent = MODES[mode].label;
+    document.title = running ? `${fmt(remaining)} · ${MODES[mode].label} — Focus Quest` : "Focus Quest — Pomodoro + XP";
+  }
+
+  function setMode(m) {
+    stop();
+    mode = m;
+    remaining = state.durations[m] * 60;
+    document.querySelectorAll(".modes button").forEach(b => b.classList.toggle("active", b.dataset.mode === m));
+    renderTimer();
+  }
+
+  function start() {
+    if (running) return;
+    running = true;
+    endAt = Date.now() + remaining * 1000;
+    $("start-btn").textContent = "⏸ Pause";
+    tickHandle = setInterval(() => {
+      remaining = Math.max(0, Math.round((endAt - Date.now()) / 1000));
+      renderTimer();
+      if (remaining <= 0) complete();
+    }, 250);
+    renderTimer();
+  }
+  function stop() {
+    running = false;
+    clearInterval(tickHandle);
+    $("start-btn").textContent = "▶ Start";
+  }
+  function toggle() { running ? stop() : start(); }
+  function reset() { stop(); remaining = totalSeconds(); renderTimer(); }
+  function skip() { stop(); remaining = 0; complete(); }
+
+  function complete() {
+    stop();
+    remaining = 0;
+    renderTimer();
+    if (mode === "focus") {
+      const mins = state.durations.focus;
+      state.totalSessions++;
+      state.daySessions++;
+      state.totalMinutes += mins;
+      state.xp += XP_PER_SESSION;
+      state.coins += COINS_PER_SESSION;
+      // streak: bump only on the first focus session of a new day
+      const prevDay = state.lastCompletedDay;
+      const t = todayKey();
+      if (prevDay !== t) {
+        const yest = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+        state.streak = prevDay === yest ? state.streak + 1 : 1;
+        state.lastCompletedDay = t;
+      }
+      if (state.streak === 0) state.streak = 1;
+      focusSessionsThisRun++;
+      toast(`🎯 Focus session done! +${XP_PER_SESSION} XP · +${COINS_PER_SESSION} 🪙`);
+      confettiBurst();
+      // auto-suggest a break
+      const next = focusSessionsThisRun % 4 === 0 ? "long" : "short";
+      if (confirm("Take a " + MODES[next].label.toLowerCase() + "?")) setMode(next);
+      else renderTimer();
+    } else {
+      toast("☕ Break's over — back to the grind!");
+      setMode("focus");
+    }
+    checkAchievements();
+    save();
+    renderAll();
+  }
+
+  // ---------- XP / stats ----------
+  function renderStats() {
+    const lvl = levelFor(state.xp);
+    const need = xpIntoLevel(state.xp);
+    const req = xpForLevel(lvl);
+    $("hdr-level").textContent = lvl;
+    $("hdr-coins").textContent = state.coins;
+    $("hdr-streak").textContent = state.streak;
+    $("avatar").textContent = AVATARS[(lvl - 1) % AVATARS.length];
+    $("xp-fill").style.width = Math.min(100, (need / req) * 100) + "%";
+    $("xp-text").textContent = `${need} / ${req} XP to level ${lvl + 1}`;
+    $("stat-today").textContent = state.daySessions;
+    $("stat-minutes").textContent = state.totalMinutes;
+    $("stat-streak").textContent = state.streak;
+  }
+
+  function checkAchievements() {
+    for (const a of ACHIEVEMENTS) {
+      if (!state.achievements.includes(a.id) && a.test(state)) {
+        state.achievements.push(a.id);
+        toast(`🏆 Achievement unlocked: ${a.name}!`);
+        confettiBurst();
+      }
+    }
+  }
+  function renderAchievements() {
+    $("ach-grid").innerHTML = ACHIEVEMENTS.map(a => `
+      <div class="ach ${state.achievements.includes(a.id) ? "unlocked" : ""}">
+        <div class="icon">${a.icon}</div>
+        <div class="name">${a.name}</div>
+        <div class="desc">${a.desc}</div>
+      </div>`).join("");
+  }
+
+  // ---------- tasks ----------
+  function renderTasks() {
+    const list = $("task-list");
+    list.innerHTML = "";
+    $("tasks-empty").style.display = state.tasks.length ? "none" : "block";
+    for (const t of state.tasks) {
+      const li = document.createElement("li");
+      li.className = "task" + (t.done ? " done" : "") + (t.id === state.activeTaskId && !t.done ? " active" : "");
+      li.innerHTML = `<span class="dot"></span><span class="t-name"></span><button class="t-del" title="Delete">✕</button>`;
+      li.querySelector(".t-name").textContent = t.text;
+      li.addEventListener("click", (e) => {
+        if (e.target.classList.contains("t-del")) {
+          state.tasks = state.tasks.filter(x => x.id !== t.id);
+          if (state.activeTaskId === t.id) state.activeTaskId = null;
+        } else if (!t.done) {
+          state.activeTaskId = state.activeTaskId === t.id ? null : t.id;
+        } else {
+          t.done = false; state.tasksDone = Math.max(0, state.tasksDone - 1);
+        }
+        save(); renderTasks(); renderActiveTaskLabel();
+      });
+      // right-click = complete
+      li.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        if (!t.done) { t.done = true; state.tasksDone++; if (state.activeTaskId === t.id) state.activeTaskId = null; }
+        checkAchievements(); save(); renderTasks(); renderActiveTaskLabel(); renderStats();
+      });
+      list.appendChild(li);
+    }
+  }
+  function renderActiveTaskLabel() {
+    const t = state.tasks.find(x => x.id === state.activeTaskId && !x.done);
+    $("active-task-label").textContent = t ? "Questing: " + t.text : "No active task — pick one below 👇";
+  }
+  function addTask() {
+    const input = $("task-input");
+    const text = input.value.trim();
+    if (!text) return;
+    const t = { id: Date.now() + Math.random(), text, done: false };
+    state.tasks.push(t);
+    if (!state.activeTaskId) state.activeTaskId = t.id;
+    input.value = "";
+    save(); renderTasks(); renderActiveTaskLabel();
+  }
+
+  // ---------- fx ----------
+  let toastTimer;
+  function toast(msg) {
+    const el = $("toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove("show"), 3200);
+  }
+  const cvs = $("confetti"), ctx = cvs.getContext("2d");
+  let parts = [];
+  function resizeCanvas() { cvs.width = innerWidth; cvs.height = innerHeight; }
+  addEventListener("resize", resizeCanvas); resizeCanvas();
+  function confettiBurst() {
+    const colors = ["#7c5cff","#00d4ff","#3ddc84","#ffb454","#ff5c7a","#ffffff"];
+    for (let i = 0; i < 90; i++) {
+      parts.push({
+        x: cvs.width / 2, y: cvs.height / 3,
+        vx: (Math.random() - .5) * 14, vy: Math.random() * -12 - 3,
+        size: Math.random() * 7 + 3, color: colors[i % colors.length],
+        life: 1, spin: Math.random() * .3,
+      });
+    }
+  }
+  (function anim() {
+    ctx.clearRect(0, 0, cvs.width, cvs.height);
+    parts = parts.filter(p => p.life > 0);
+    for (const p of parts) {
+      p.x += p.vx; p.y += p.vy; p.vy += .4; p.life -= .012;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, p.life);
+      ctx.translate(p.x, p.y); ctx.rotate(p.y * p.spin);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * .6);
+      ctx.restore();
+    }
+    requestAnimationFrame(anim);
+  })();
+
+  // ---------- wiring ----------
+  function renderAll() { renderStats(); renderAchievements(); renderTasks(); renderActiveTaskLabel(); renderTimer(); }
+  document.querySelectorAll(".modes button").forEach(b => b.addEventListener("click", () => setMode(b.dataset.mode)));
+  $("start-btn").addEventListener("click", toggle);
+  $("reset-btn").addEventListener("click", reset);
+  $("skip-btn").addEventListener("click", skip);
+  $("add-task-btn").addEventListener("click", addTask);
+  $("task-input").addEventListener("keydown", e => { if (e.key === "Enter") addTask(); });
+  addEventListener("keydown", e => {
+    if (e.target.tagName === "INPUT") return;
+    if (e.code === "Space") { e.preventDefault(); toggle(); }
+    if (e.key.toLowerCase() === "r") reset();
+  });
+  // keep the clock honest across tab throttling
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && running) {
+      remaining = Math.max(0, Math.round((endAt - Date.now()) / 1000));
+      if (remaining <= 0) complete(); else renderTimer();
+    }
+  });
+
+  // shift+click a mode button to edit its duration
+  document.querySelectorAll(".modes button").forEach(b => b.addEventListener("click", (e) => {
+    if (!e.shiftKey) return;
+    const m = b.dataset.mode;
+    const v = prompt(`Set ${MODES[m].label} length in minutes:`, state.durations[m]);
+    const n = parseInt(v, 10);
+    if (n && n > 0 && n <= 180) {
+      state.durations[m] = n; save();
+      if (mode === m) { remaining = n * 60; renderTimer(); }
+      toast(`${MODES[m].label} set to ${n} min`);
+    }
+  }));
+
+  renderAll();
+})();
+</script>
+</body>
+</html>
