@@ -1,4 +1,4 @@
-# focus-quest — Components
+# FocusQuest — Components
 
 Single-file static web app (focus/productivity quest UI). **No build system,
 no services, no external libraries.**
